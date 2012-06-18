@@ -7,6 +7,8 @@
 #
 ################################################################################
 
+import argparse
+
 # State of board of fixed size
 class Board(object):
     def __init__(self, infile=None):
@@ -124,13 +126,16 @@ class Board(object):
 
 
 if __name__ == "__main__":
-    f = open('sudoku.txt', 'r')
+    parser = argparse.ArgumentParser(description='Solve sudoku puzzles.')
+    parser.add_argument('infile', metavar='file', type=file, help='filename to open')
+    args = parser.parse_args()
+
     done = False
     nboards = 0
     total = 0
     while not done:
         try:
-            board = Board(infile=f)
+            board = Board(infile=args.infile)
             if board.get_num_entries() == 0:
                 done = True
                 break
