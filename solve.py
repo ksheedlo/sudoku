@@ -1,110 +1,126 @@
 ################################################################################
 #
 # File: solve.py
-# Author: Ken Sheedlo
+# Author: Ken Sheedlo, modifications by Nick Vanderweit
 # 
-# A first hack at a Sudoku solver in Python.
+# A first^H^H^H^H^Hsecond hack at a Sudoku solver in Python.
 #
 ################################################################################
 
-def index(r, c):
-    return 9*r + c
+# State of board of fixed size
+class Board(object):
+    def __init__(self, infile=None):
+        self.size = 9
 
-def find_best_target(board):
-    best_options = 10
-    best_r, best_c = -1,-1
-    best_valids = []
-    for r in xrange(9):
-        for c in xrange(9):
-            if board[index(r,c)] == 0:
-                # Count the number of options we have for this target.
-                # If less than best_options, save this position.
-                missing = [True for f in range(10)]
-                for check_r in xrange(9):
-                    if board[index(check_r, c)] != 0:
-                        missing[board[index(check_r, c)]] = False
-                for check_c in xrange(9):
-                    if board[index(r, check_c)] != 0:
-                        missing[board[index(r, check_c)]] = False
-                box_r = r / 3
-                box_c = c / 3
-                for br in xrange(3*box_r, 3*box_r + 3):
-                    for bc in xrange(3*box_c, 3*box_c + 3):
-                        if board[index(br, bc)] != 0:
-                            missing[board[index(br, bc)]] = False
-                n_missing = len(filter(None, missing))
-                if n_missing < best_options:
-                    best_options = n_missing
-                    best_r, best_c = r, c
-                    best_valids = missing
-    return best_r, best_c, best_valids
+        self.state = {}
 
-def solve(board):
-    r, c, v = find_best_target(board)
-    if len(v) == 0:
-        # Solved.
-        return True
+        # Expect to read a line of dummy text (e.g., 'Grid 42')
+        if not infile is None:
+            if not infile.readline():
+                raise EOFError()
 
-    for n in xrange(1, 10):
-        if v[n]:
-            board[index(r, c)] = n
-            if solve(board):
-                return True
-    board[index(r, c)] = 0
-    return False
+        for i in xrange(self.size):
+            # Fill in the board with zeros (unsolved)
+            for j in xrange(self.size):
+                self.state[(i,j)] = 0
 
-def print_board(board):
-    for r in xrange(0, 81, 9):
-        line = ''
-        for c in xrange(9):
-            if c % 3 == 0:
-                line += '   {0}'.format(board[r + c])
-            else:
-                line += ' {0}'.format(board[r + c])
-        if r % 27 == 0:
-            print
-        print line
-    print
+            # If we have an input file, read in its row data
+            if not infile is None:
+                for (j, n) in enumerate(int(c) for c in infile.readline().strip()):
+                    self.state[(i,j)] = n
 
-def load_board(f):
-    # Expect to read a line of dummy text (e.g., 'Grid 42')
-    f.readline()
+    def get_num_entries(self):
+        return len(self.state)
 
-    board = []
-    for n in xrange(9):
-        board.extend([int(c) for c in f.readline().strip()])
-    return board
-
-def validate_board(board):
-    # Check rows
-    for r in xrange(9):
-        found = [False for n in xrange(10)]
-        for c in xrange(9):
-            found[board[index(r, c)]] = True
-        if len(filter(None, found[1:])) != 9:
-            print_board(board)
-            raise Exception('validate_board: row {0} failed'.format(r))
-
-    # Columns
-    for c in xrange(9):
-        found = [False for n in xrange(10)]
+    def find_best_target(self):
+        best_options = 10
+        best_r, best_c = -1,-1
+        best_valids = []
         for r in xrange(9):
-            found[board[index(r, c)]] = True
-        if len(filter(None, found[1:])) != 9:
-            print_board(board)
-            raise Exception('validate_board: column {0} failed'.format(c))
+            for c in xrange(9):
+                if self.state[(r,c)] == 0:
+                    # Count the number of options we have for this target.
+                    # If less than best_options, save this position.
+                    missing = [True for f in range(10)]
+                    for check_r in xrange(9):
+                        if self.state[(check_r, c)] != 0:
+                            missing[self.state[(check_r, c)]] = False
+                    for check_c in xrange(9):
+                        if self.state[(r, check_c)] != 0:
+                            missing[self.state[(r, check_c)]] = False
+                    
+                    box_r = r / 3
+                    box_c = c / 3
+                    for br in xrange(3*box_r, 3*box_r + 3):
+                        for bc in xrange(3*box_c, 3*box_c + 3):
+                            if self.state[(br, bc)] != 0:
+                                missing[self.state[(br, bc)]] = False
+                    n_missing = len(filter(None, missing))
+                    if n_missing < best_options:
+                        best_options = n_missing
+                        best_r, best_c = r, c
+                        best_valids = missing
+        return best_r, best_c, best_valids
     
-    # 3x3 Blocks
-    for br in xrange(0, 9, 3):
-        for bc in xrange(0, 9, 3):
+    def solve(self):
+        r, c, v = self.find_best_target()
+        if len(v) == 0:
+            # Solved.
+            return True
+
+        for n in xrange(1, 10):
+            if v[n]:
+                self.state[(r, c)] = n
+                if self.solve():
+                    return True
+
+        self.state[(r, c)] = 0
+        return False
+
+    def validate(self):
+        # Check rows
+        for r in xrange(9):
             found = [False for n in xrange(10)]
-            for r in xrange(br, br+3):
-                for c in range(bc, bc+3):
-                    found[board[index(r,c)]] = True
+            for c in xrange(9):
+                found[self.state[(r, c)]] = True
             if len(filter(None, found[1:])) != 9:
-                print_board(board)
-                raise Exception('validate_board: block index {0},{1} failed'.format(br / 3, bc / 3))
-    
+                print str(self),
+                raise Exception('validate: row {0} failed'.format(r))
+
+        # Columns
+        for c in xrange(9):
+            found = [False for n in xrange(10)]
+            for r in xrange(9):
+                found[self.state[(r, c)]] = True
+            if len(filter(None, found[1:])) != 9:
+                print str(self),
+                raise Exception('validate_board: column {0} failed'.format(c))
+        
+        # 3x3 Blocks
+        for br in xrange(0, 9, 3):
+            for bc in xrange(0, 9, 3):
+                found = [False for n in xrange(10)]
+                for r in xrange(br, br+3):
+                    for c in range(bc, bc+3):
+                        found[self.state[(r,c)]] = True
+                if len(filter(None, found[1:])) != 9:
+                    print str(self),
+                    raise Exception('validate_board: block index {0},{1} failed'.format(br / 3, bc / 3))
+
+    def __str__(self):
+        lines = []
+        for r in xrange(9):
+            line = ''
+            for c in xrange(9):
+                if c % 3 == 0:
+                    line += '   {0}'.format(self.state[(r, c)])
+                else:
+                    line += ' {0}'.format(self.state[(r, c)])
+            if r % 3 == 0:
+                lines.append("")
+            lines.append(line)
+        lines.append("")
+        return "".join(map(lambda l: l + "\n", lines))
 
 
 if __name__ == "__main__":
@@ -114,15 +130,13 @@ if __name__ == "__main__":
     total = 0
     while not done:
         try:
-            board = load_board(f)
-            if len(board) == 0:
+            board = Board(infile=f)
+            if board.get_num_entries() == 0:
                 done = True
                 break
-            solve(board)
-            validate_board(board)
-            total += 100 * board[0] + 10 * board[1] + board[2]
+            board.solve()
+            board.validate()
             nboards = nboards + 1
             print "Solved board {0}".format(nboards)
         except EOFError:
             done = True
-    print total
