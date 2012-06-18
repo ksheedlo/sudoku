@@ -34,6 +34,10 @@ class Board(object):
     def get_num_entries(self):
         return len(self.state)
 
+    # Searches the puzzle state for the unsolved position with the fewest
+    # number of possibilities. Then yields a tuple of its row, column, and
+    # a list of possible values based on what has been excluded by that row,
+    # column, and box.
     def find_best_target(self):
         best_options = 10
         best_r, best_c = -1,-1
@@ -44,13 +48,19 @@ class Board(object):
                     # Count the number of options we have for this target.
                     # If less than best_options, save this position.
                     missing = [True for f in range(10)]
+
+                    # Mark each solved number in this column as not valid for
+                    # the solution at (r,c)
                     for check_r in xrange(9):
                         if self.state[(check_r, c)] != 0:
                             missing[self.state[(check_r, c)]] = False
+
+                    # Mark each solved number in this row
                     for check_c in xrange(9):
                         if self.state[(r, check_c)] != 0:
                             missing[self.state[(r, check_c)]] = False
                     
+                    # Determine the bounds of the 3x3 box and do the same for it
                     box_r = r / 3
                     box_c = c / 3
                     for br in xrange(3*box_r, 3*box_r + 3):
@@ -59,24 +69,29 @@ class Board(object):
                                 missing[self.state[(br, bc)]] = False
                     n_missing = len(filter(None, missing))
                     if n_missing < best_options:
+                        # This is a better target than the previously-known
+                        # one; replace
                         best_options = n_missing
                         best_r, best_c = r, c
                         best_valids = missing
         return best_r, best_c, best_valids
     
+    # Solves the puzzle by finding the best target, sequentially substituting
+    # all possible values, and recursing.
     def solve(self):
-        r, c, v = self.find_best_target()
-        if len(v) == 0:
+        row, column, valids = self.find_best_target()
+        if len(valids) == 0:
             # Solved.
             return True
 
         for n in xrange(1, 10):
-            if v[n]:
-                self.state[(r, c)] = n
+            if valids[n]:
+                # Try each possible value for this square
+                self.state[(row, column)] = n
                 if self.solve():
                     return True
 
-        self.state[(r, c)] = 0
+        self.state[(row, column)] = 0
         return False
 
     def validate(self):
@@ -115,19 +130,24 @@ class Board(object):
             line = ''
             for c in xrange(9):
                 if c % 3 == 0:
+                    # Insert column padding between blocks
                     line += '   {0}'.format(self.state[(r, c)])
                 else:
                     line += ' {0}'.format(self.state[(r, c)])
             if r % 3 == 0:
-                lines.append("")
+                # Insert column padding between rows
+                lines.append('')
             lines.append(line)
-        lines.append("")
-        return "".join(map(lambda l: l + "\n", lines))
+        lines.append('')
+
+        # Concatenate all the lines, separating them with a newline
+        return ''.join(map(lambda l: l + "\n", lines))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Solve sudoku puzzles.')
-    parser.add_argument('infile', metavar='file', type=file, help='filename to open')
+    parser.add_argument('infile', metavar='file', type=file,
+            help='filename to open')
     args = parser.parse_args()
 
     done = False
